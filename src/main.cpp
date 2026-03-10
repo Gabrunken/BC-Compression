@@ -4,8 +4,9 @@
 #include <stb_dxt.h>
 #include <iostream>
 #include <string>
+#include <vector>     // Necessario per il parsing dinamico
 #include <stdint.h>
-#include <cstring> // Necessario per strcmp()
+#include <cstring>
 
 #define NO_FILE_PATH_DEFINED 1
 #define WRONG_FILE_PATH 2
@@ -24,39 +25,52 @@ public:
 
 int main(int argc, char** argv)
 {
-    if (argc == 2 && strcmp(argv[1], "-h") == 0)
+    bool flipVertically = false;
+    std::vector<std::string> args;
+
+    // 1. Parsing dinamico di TUTTI gli argomenti
+    for (int i = 1; i < argc; ++i)
     {
-        printf("=== Asset Cooker - Texture Compression Tool ===\n");
-        printf("Usage: %s <input.png> <output.bin> [type]\n\n", argv[0]);
-        printf("Available Texture Types:\n");
-        printf("  albedo       : (Default) Base color without transparency.\n");
-        printf("                 Compresses to BC1/DXT1 (8 bytes/block).\n\n");
-
-        printf("  albedo_alpha : Base color WITH transparency (Alpha channel).\n");
-        printf("                 Compresses to BC3/DXT5 (16 bytes/block).\n\n");
-
-        printf("  normal       : Normal maps. Applies DXT5nm optimization (moves X to Alpha,\n");
-        printf("                 clears R and B) to preserve maximum precision for lighting.\n");
-        printf("                 Compresses to BC3/DXT5 (16 bytes/block). Calculate Z in shader.\n\n");
-
-        printf("  orm          : Packed masks (R = Ambient Occlusion, G = Roughness, B = Metallic).\n");
-        printf("                 Compresses to BC1/DXT1 (8 bytes/block). Load as Linear, NOT sRGB!\n");
-        printf("=================================================\n");
-        return 0; // Ritorniamo 0 perché è una richiesta di aiuto andata a buon fine
+        if (strcmp(argv[i], "-h") == 0)
+        {
+            printf("=== Asset Cooker - Texture Compression Tool ===\n");
+            printf("Usage: %s [-f] <input.png> <output.bin> [type]\n\n", argv[0]);
+            printf("Options:\n");
+            printf("  -f           : Flips the image vertically before compressing.\n");
+            printf("                 (Required for OpenGL's bottom-left origin coordinate system)\n\n");
+            printf("Available Texture Types:\n");
+            printf("  albedo       : (Default) Base color without transparency. (BC1/DXT1)\n");
+            printf("  albedo_alpha : Base color WITH transparency. (BC3/DXT5)\n");
+            printf("  normal       : Normal maps. Applies DXT5nm optimization. (BC3/DXT5)\n");
+            printf("  orm          : Packed masks (AO, Roughness, Metallic). (BC1/DXT1)\n");
+            printf("=================================================\n");
+            return 0;
+        }
+        else if (strcmp(argv[i], "-f") == 0)
+        {
+            flipVertically = true; // Flag intercettato!
+        }
+        else
+        {
+            // Se non è un flag, è un parametro di testo (file o tipo)
+            args.push_back(argv[i]);
+        }
     }
 
-    // 1. Lettura argomenti
-    if (argc < 3)
+    // 2. Controllo dei file (ora usiamo args.size() invece di argc)
+    if (args.size() < 2)
     {
-        printf("Usage: %s <input.png> <output.bin> [type: albedo|albedo_alpha|normal|orm]\n", argv[0]);
+        printf("Usage: %s [-f] <input.png> <output.bin> [type: albedo|albedo_alpha|normal|orm]\n", argv[0]);
+        printf("Type '%s -h' for more detailed information.\n", argv[0]);
         return NO_FILE_PATH_DEFINED;
     }
 
-    const char *inputFile = argv[1];
-    const char *outputFile = argv[2];
-    const char *texType = (argc > 3) ? argv[3] : "albedo";
+    // Estraiamo i parametri puliti dal nostro vector
+    const char *inputFile = args[0].c_str();
+    const char *outputFile = args[1].c_str();
+    const char *texType = (args.size() > 2) ? args[2].c_str() : "albedo";
 
-    // --- NUOVO: Validazione rigorosa dell'input ---
+    // 3. Validazione rigorosa dell'input
     if (strcmp(texType, "albedo") != 0 &&
         strcmp(texType, "albedo_alpha") != 0 &&
         strcmp(texType, "normal") != 0 &&
@@ -66,15 +80,16 @@ int main(int argc, char** argv)
         printf("Allowed types: albedo, albedo_alpha, normal, orm\n");
         return INVALID_TEXTURE_TYPE;
     }
-    // ----------------------------------------------
 
-    // 2. Determiniamo le flag operative per il ciclo di compressione
-    // Ora siamo sicuri al 100% che texType sia uno dei 4 valori validi
     bool isDXT5 = (strcmp(texType, "albedo_alpha") == 0 || strcmp(texType, "normal") == 0);
     bool isNormalMap = (strcmp(texType, "normal") == 0);
 
+    // --- 4. MAGIA DEL FLIP VERTICALE ---
+    // Diciamo a stb_image di capovolgere l'immagine in RAM durante il caricamento
+    stbi_set_flip_vertically_on_load(flipVertically);
+    // -----------------------------------
+
     int width, height, channels;
-    // Forziamo 4 canali (RGBA) perché stb_dxt richiede blocchi esatti di 64 byte
     unsigned char *img_data = stbi_load(inputFile, &width, &height, &channels, 4);
 
     if (!img_data)
@@ -98,17 +113,15 @@ int main(int argc, char** argv)
         return OUTPUT_FILE_FAIL;
     }
 
-    // 3. Compilazione dell'Header dinamico
     TextureHeader header{};
     header.magic = 0x54584554;
     header.width = width;
     header.height = height;
-    header.format = isDXT5 ? 5 : 1; // 5 per DXT5, 1 per DXT1
+    header.format = isDXT5 ? 5 : 1;
 
     fwrite(&header, sizeof(TextureHeader), 1, outFile);
 
     unsigned char block_rgba[64];
-    // IMPORTANTE: Il buffer ora è di 16 byte per accogliere il DXT5 se necessario
     unsigned char compressed_block[16];
 
     int blocks_x = width / 4;
@@ -117,7 +130,6 @@ int main(int argc, char** argv)
     for (int by = 0; by < blocks_y; by++) {
         for (int bx = 0; bx < blocks_x; bx++) {
 
-            // Estrazione della griglia 4x4
             for (int y = 0; y < 4; y++) {
                 for (int x = 0; x < 4; x++) {
                     int px = (bx * 4) + x;
@@ -133,22 +145,18 @@ int main(int argc, char** argv)
                 }
             }
 
-            // 4. Compressione e scrittura con branching logico
             if (isDXT5) {
                 if (isNormalMap) {
-                    // Magia DXT5nm: Ottimizzazione canali per la Normal Map
                     for(int i = 0; i < 16; i++) {
-                        block_rgba[i*4 + 3] = block_rgba[i*4 + 0]; // Sposta la X (Rosso) nel canale Alpha
-                        block_rgba[i*4 + 0] = 0;                   // Azzera il Rosso per risparmiare dati
-                        block_rgba[i*4 + 2] = 0;                   // Azzera la Z (Blu), nello shader farai Z = sqrt(1 - X^2 - Y^2)
+                        block_rgba[i*4 + 3] = block_rgba[i*4 + 0];
+                        block_rgba[i*4 + 0] = 0;
+                        block_rgba[i*4 + 2] = 0;
                     }
                 }
 
-                // Il parametro '1' dice a stb_dxt di processare in DXT5 (16 byte per blocco)
                 stb_compress_dxt_block(compressed_block, block_rgba, 1, STB_DXT_NORMAL);
                 fwrite(compressed_block, 1, 16, outFile);
             } else {
-                // Il parametro '0' dice a stb_dxt di processare in DXT1 (8 byte per blocco)
                 stb_compress_dxt_block(compressed_block, block_rgba, 0, STB_DXT_NORMAL);
                 fwrite(compressed_block, 1, 8, outFile);
             }
@@ -158,6 +166,7 @@ int main(int argc, char** argv)
     fclose(outFile);
     stbi_image_free(img_data);
 
-    std::printf("Asset cooked successfully: %s -> %s (Format: %s)\n", inputFile, outputFile, texType);
+    std::printf("Asset cooked successfully: %s -> %s (Format: %s, Flipped: %s)\n",
+                inputFile, outputFile, texType, flipVertically ? "Yes" : "No");
     return 0;
 }

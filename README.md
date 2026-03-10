@@ -28,9 +28,9 @@ To use it open a terminal and run the program, including 3 main command-line-arg
 
 	- <compression-type>
 
-
-
-If you need help on which compression type to use, write "-h" as the first and only argument.
+Options:
+	- "-f" -> flip image vertically on load
+	- "-h" -> show all commands and other information
 
 NOTES:
 
