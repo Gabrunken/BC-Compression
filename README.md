@@ -32,3 +32,6 @@ To use it open a terminal and run the program, including 3 main command-line-arg
 
 If you need help on which compression type to use, write "-h" as the first and only argument.
 
+NOTES:
+
+Mipmap generation is yet to be done.
