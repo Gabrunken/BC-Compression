@@ -22,11 +22,11 @@ It is a command prompt program.
 
 To use it open a terminal and run the program, including 3 main command-line-argument:
 
-&nbsp;	- <file-to-compress>
+	- <file-to-compress>
 
-&nbsp;	- <output-file>
+	- <output-file>
 
-&nbsp;	- <compression-type>
+	- <compression-type>
 
 
 
