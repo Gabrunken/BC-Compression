@@ -4,7 +4,7 @@
 #include <stb_dxt.h>
 #include <iostream>
 #include <string>
-#include <vector>     // Necessario per il parsing dinamico
+#include <vector>
 #include <stdint.h>
 #include <cstring>
 
@@ -28,7 +28,6 @@ int main(int argc, char** argv)
     bool flipVertically = false;
     std::vector<std::string> args;
 
-    // 1. Parsing dinamico di TUTTI gli argomenti
     for (int i = 1; i < argc; ++i)
     {
         if (strcmp(argv[i], "-h") == 0)
@@ -57,7 +56,6 @@ int main(int argc, char** argv)
         }
     }
 
-    // 2. Controllo dei file (ora usiamo args.size() invece di argc)
     if (args.size() < 2)
     {
         printf("Usage: %s [-f] <input.png> <output.bigcbc> [type: albedo|albedo_alpha|normal|orm]\n", argv[0]);
@@ -70,7 +68,6 @@ int main(int argc, char** argv)
     const char *outputFile = args[1].c_str();
     const char *texType = (args.size() > 2) ? args[2].c_str() : "albedo";
 
-    // 3. Validazione rigorosa dell'input
     if (strcmp(texType, "albedo") != 0 &&
         strcmp(texType, "albedo_alpha") != 0 &&
         strcmp(texType, "normal") != 0 &&
@@ -84,10 +81,7 @@ int main(int argc, char** argv)
     bool isDXT5 = (strcmp(texType, "albedo_alpha") == 0 || strcmp(texType, "normal") == 0);
     bool isNormalMap = (strcmp(texType, "normal") == 0);
 
-    // --- 4. MAGIA DEL FLIP VERTICALE ---
-    // Diciamo a stb_image di capovolgere l'immagine in RAM durante il caricamento
     stbi_set_flip_vertically_on_load(flipVertically);
-    // -----------------------------------
 
     int width, height, channels;
     unsigned char *img_data = stbi_load(inputFile, &width, &height, &channels, 4);
