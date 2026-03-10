@@ -34,7 +34,7 @@ int main(int argc, char** argv)
         if (strcmp(argv[i], "-h") == 0)
         {
             printf("=== Asset Cooker - Texture Compression Tool ===\n");
-            printf("Usage: %s [-f] <input.png> <output.bin> [type]\n\n", argv[0]);
+            printf("Usage: %s [-f] <input.png> <output.bigcbc> [type]\n\n", argv[0]);
             printf("Options:\n");
             printf("  -f           : Flips the image vertically before compressing.\n");
             printf("                 (Required for OpenGL's bottom-left origin coordinate system)\n\n");
@@ -60,7 +60,7 @@ int main(int argc, char** argv)
     // 2. Controllo dei file (ora usiamo args.size() invece di argc)
     if (args.size() < 2)
     {
-        printf("Usage: %s [-f] <input.png> <output.bin> [type: albedo|albedo_alpha|normal|orm]\n", argv[0]);
+        printf("Usage: %s [-f] <input.png> <output.bigcbc> [type: albedo|albedo_alpha|normal|orm]\n", argv[0]);
         printf("Type '%s -h' for more detailed information.\n", argv[0]);
         return NO_FILE_PATH_DEFINED;
     }
